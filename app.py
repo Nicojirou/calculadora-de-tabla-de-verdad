@@ -279,7 +279,6 @@ with st.expander("📚 Guía de Operadores"):
     - `¬p ⊕ q` → XOR con negación
     - `(p → q) ↔ (¬q → ¬p)` → Ley de contrarrecíproca
     """)
-
 # Footer
 st.markdown("---")
 st.markdown("""
