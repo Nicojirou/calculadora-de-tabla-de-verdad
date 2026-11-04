@@ -261,43 +261,29 @@ if st.session_state.tabla_generada and st.session_state.df is not None:
 # GUÍA DE REFERENCIA
 # ============================================================
 with st.expander("📚 Guía de Operadores"):
-    st.markdown("""
-    | Símbolo | Nombre | Significado |
-    |:-------:|:-------|:------------|
-    | **∧** | Conjunción | AND - Verdadero si AMBOS son verdaderos |
-    | **∨** | Disyunción | OR - Verdadero si al menos UNO es verdadero |
-    | **¬** | Negación | NOT - Invierte el valor |
-    | **⊕** | XOR | Verdadero si son DIFERENTES |
-    | **→** | Condicional | Falso solo si p=1 y q=0 |
-    | **↔** | Bicondicional | Verdadero si ambos son IGUALES |
-    
-    **Variables permitidas:** p, q, r, s, t, u
-    
-    **Ejemplos:**
-    - `p ∧ q` → Conjunción simple
-    - `(p ∨ q) → r` → Condicional con disyunción
-    - `¬p ⊕ q` → XOR con negación
-    - `(p → q) ↔ (¬q → ¬p)` → Ley de contrarrecíproca""")
-# Footer
-st.markdown("---")
-st.markdown("""
-<div style='text-align: center; color: gray; font-size: 0.9em;'>
-    <p>🎓 <strong>Estructuras Discretas</strong> - Ingeniería en Software</p>
-    <p>💻 Desarrollado con Python y Streamlit</p>
-</div>
-""", unsafe_allow_html=True)
-    **Ejemplos:**
-    - `p ∧ q` → Conjunción simple
-    - `(p ∨ q) → r` → Condicional con disyunción
-    - `¬p ⊕ q` → XOR con negación
-    - `(p → q) ↔ (¬q → ¬p)` → Ley de contrarrecíproca
-    """)
+    st.markdown(
+        "| Símbolo | Nombre | Significado |\n"
+        "|:-------:|:-------|:------------|\n"
+        "| **∧** | Conjunción | AND - Verdadero si AMBOS son verdaderos |\n"
+        "| **∨** | Disyunción | OR - Verdadero si al menos UNO es verdadero |\n"
+        "| **¬** | Negación | NOT - Invierte el valor |\n"
+        "| **⊕** | XOR | Verdadero si son DIFERENTES |\n"
+        "| **→** | Condicional | Falso solo si p=1 y q=0 |\n"
+        "| **↔** | Bicondicional | Verdadero si ambos son IGUALES |\n\n"
+        "**Variables permitidas:** p, q, r, s, t, u\n\n"
+        "**Ejemplos:**\n"
+        "- `p ∧ q` → Conjunción simple\n"
+        "- `(p ∨ q) → r` → Condicional con disyunción\n"
+        "- `¬p ⊕ q` → XOR con negación\n"
+        "- `(p → q) ↔ (¬q → ¬p)` → Ley de contrarrecíproca"
+    )
 
 # Footer
 st.markdown("---")
-st.markdown("""
-<div style='text-align: center; color: gray; font-size: 0.9em;'>
-    <p>🎓 <strong>Estructuras Discretas</strong> - Ingeniería en Software</p>
-    <p>💻 Desarrollado con Python y Streamlit</p>
-</div>
-""", unsafe_allow_html=True)
+st.markdown(
+    "<div style='text-align: center; color: gray; font-size: 0.9em;'>"
+    "<p>🎓 <strong>Estructuras Discretas</strong> - Ingeniería en Software</p>"
+    "<p>💻 Desarrollado con Python y Streamlit</p>"
+    "</div>",
+    unsafe_allow_html=True
+)
