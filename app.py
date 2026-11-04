@@ -1,322 +1,282 @@
-import re
 import streamlit as st
-import pandas as pd
+import re
 from itertools import product
+import pandas as pd
 
-st.set_page_config(page_title="Calculadora Tabla de la Verdad", layout="centered")
+# ============================================================
+# CONFIGURACIÓN
+# ============================================================
+st.set_page_config(
+    page_title="Calculadora Tabla de la Verdad",
+    page_icon="🧮",
+    layout="centered"
+)
 
 st.title("🧮 Calculadora de Tabla de la Verdad")
 st.markdown("Construye tu expresión haciendo clic. El resultado se muestra en **0 y 1**.")
 
-# ---------------------------------------------------------------
-# Estado de la sesión
-# ---------------------------------------------------------------
-if "tokens" not in st.session_state:
-    st.session_state.tokens = []
+# ============================================================
+# ESTADO DE LA SESIÓN
+# ============================================================
+if "expr" not in st.session_state:
+    st.session_state.expr = ""
 
-if "df_resultado" not in st.session_state:
-    st.session_state.df_resultado = None
-    st.session_state.vars_usadas = []
-
-def agregar(simbolo):
-    st.session_state.tokens.append(simbolo)
-
-def borrar_ultimo():
-    if st.session_state.tokens:
-        st.session_state.tokens.pop()
-
-def limpiar_todo():
-    st.session_state.tokens = []
-    st.session_state.df_resultado = None
-
-# ---------------------------------------------------------------
-# Interfaz: Constructor de Expresión
-# ---------------------------------------------------------------
+# ============================================================
+# CONSTRUCTOR DE EXPRESIÓN
+# ============================================================
 st.subheader("🛠️ Constructor de Expresión")
 
+# Variables
 st.markdown("**Variables:**")
+cols = st.columns(6)
 variables = ["p", "q", "r", "s", "t", "u"]
-cols = st.columns(6)
 for i, v in enumerate(variables):
-    with cols[i]:
-        st.button(v, key=f"var_{v}", on_click=agregar, args=(v,), use_container_width=True)
+    with cols[i % 6]:
+        if st.button(f"{v}", key=f"btn_{v}", use_container_width=True):
+            st.session_state.expr += f" {v} "
 
+# Operadores
 st.markdown("**Operadores:**")
-operadores = [("∧", "and"), ("∨", "or"), ("¬", "not"),
-              ("⊕", "xor"), ("→", "imp"), ("↔", "iff")]
 cols = st.columns(6)
-for i, (simbolo, nombre) in enumerate(operadores):
-    with cols[i]:
-        st.button(simbolo, key=f"op_{nombre}", on_click=agregar, args=(simbolo,), use_container_width=True)
-
-c1, c2, c3, c4 = st.columns([1.5, 1.5, 1.5, 1.5])
-with c1:
-    st.button("(", key="par_abre", on_click=agregar, args=("(",), use_container_width=True)
-with c2:
-    st.button(")", key="par_cierra", on_click=agregar, args=(")",), use_container_width=True)
-with c3:
-    st.button("🗑️ Limpiar Todo", key="limpiar", on_click=limpiar_todo, use_container_width=True)
-with c4:
-    st.button("⌫ Borrar Último", key="borrar", on_click=borrar_ultimo, use_container_width=True)
-
-st.divider()
-
-st.markdown("**Expresión actual:**")
-st.code(" ".join(st.session_state.tokens) or "(vacío)", language="text")
-
-st.divider()
-
-# ---------------------------------------------------------------
-# Pegar un ejercicio
-# ---------------------------------------------------------------
-def tokenizar(texto):
-    texto = texto.lower()
-    for viejo, nuevo in [("<->", " ↔ "), ("<=>", " ↔ "), ("⇔", " ↔ "),
-                         ("->", " → "), ("=>", " → "), ("⇒", " → "),
-                         ("⊻", " ⊕ ")]:
-        texto = texto.replace(viejo, nuevo)
-
-    simbolos = {"∧": "∧", "^": "∧", "&": "∧", "∨": "∨", "|": "∨",
-                "¬": "¬", "~": "¬", "!": "¬", "∼": "¬", "⊕": "⊕",
-                "→": "→", "↔": "↔", "(": "(", ")": ")"}
-    palabras = {"and": "∧", "y": "∧", "or": "∨", "o": "∨", "v": "∨",
-                "not": "¬", "no": "¬", "xor": "⊕"}
-
-    tokens = []
-    for tok in re.findall(r"[a-z]+|[^\sa-z]", texto):
-        if tok in simbolos:
-            tokens.append(simbolos[tok])
-        elif tok in palabras:
-            tokens.append(palabras[tok])
-        elif all(c in variables or c == "v" for c in tok):
-            tokens.extend("∨" if c == "v" else c for c in tok)
-        else:
-            raise ValueError(f"No reconozco «{tok}». Usa solo las variables p, q, r, s, t, u.")
-    return tokens
-
-def cargar_pegado():
-    texto = st.session_state.get("texto_pegado", "").strip()
-    if not texto:
-        st.session_state.error_pegar = "Escribe o pega un ejercicio primero."
-        return
-    try:
-        st.session_state.tokens = tokenizar(texto)
-        st.session_state.error_pegar = ""
-    except ValueError as e:
-        st.session_state.error_pegar = str(e)
-
-st.markdown("**Pegar un ejercicio:**")
-st.text_input(
-    "Escribe o pega tu expresión",
-    key="texto_pegado",
-    placeholder="Ej: (p -> q) <-> (~q -> ~p)",
-    label_visibility="collapsed",
-)
-st.button("📋 Cargar en la calculadora", key="cargar_pegado",
-          on_click=cargar_pegado, use_container_width=True)
-st.caption(
-    "Acepta símbolos (∧ ∨ ¬ ⊕ → ↔) o escritura normal: "
-    "`and`, `or`, `not`, `xor`, `->`, `<->`, `^`, `&`, `|`, `~`, `!`."
-)
-if st.session_state.get("error_pegar"):
-    st.error(f"❌ {st.session_state.error_pegar}")
-
-st.divider()
-
-# ---------------------------------------------------------------
-# Ejemplos rápidos
-# ---------------------------------------------------------------
-def cargar_ejemplo(tokens):
-    st.session_state.tokens = list(tokens)
-
-st.markdown("**Ejemplos rápidos:**")
-ejemplos = [
-    ["p", "∧", "q"],
-    ["p", "∨", "q"],
-    ["p", "⊕", "q"],
-    ["p", "→", "q"],
-    ["p", "↔", "q"],
-    ["¬", "p"],
-    ["(", "p", "→", "q", ")", "↔", "(", "¬", "q", "→", "¬", "p", ")"],
-    ["p", "∨", "¬", "p"],
-    ["p", "∧", "¬", "p"],
+operadores = [
+    ("∧", "AND"),
+    ("∨", "OR"),
+    ("¬", "NOT"),
+    ("⊕", "XOR"),
+    ("→", "IMPLIES"),
+    ("↔", "IFF")
 ]
-for fila in range(0, len(ejemplos), 3):
-    cols = st.columns(3)
-    for j in range(3):
-        ej = ejemplos[fila + j]
-        with cols[j]:
-            st.button("".join(ej), key=f"ej_{fila + j}", on_click=cargar_ejemplo,
-                      args=(ej,), use_container_width=True)
 
-st.divider()
+for i, (symbol, name) in enumerate(operadores):
+    with cols[i % 6]:
+        if st.button(f"{symbol}", key=f"btn_{name}", use_container_width=True):
+            if name == "NOT":
+                st.session_state.expr += f" {symbol} "
+            else:
+                st.session_state.expr += f" {symbol} "
 
-# ---------------------------------------------------------------
-# Lógica central: Analizador y Evaluador
-# ---------------------------------------------------------------
-class Analizador:
-    def __init__(self, tokens):
-        self.t = tokens
-        self.i = 0
+# Paréntesis y controles
+col_paren1, col_paren2, col_limpiar, col_borrar = st.columns(4)
 
-    def actual(self):
-        return self.t[self.i] if self.i < len(self.t) else None
+with col_paren1:
+    if st.button("(", use_container_width=True):
+        st.session_state.expr += "("
 
-    def consumir(self):
-        tok = self.actual()
-        self.i += 1
-        return tok
+with col_paren2:
+    if st.button(")", use_container_width=True):
+        st.session_state.expr += ")"
 
-    def analizar(self):
-        nodo = self.bicondicional()
-        if self.actual() is not None:
-            raise ValueError("Símbolos sobrantes")
-        return nodo
+with col_limpiar:
+    if st.button("🗑️ Limpiar Todo", use_container_width=True):
+        st.session_state.expr = ""
 
-    def bicondicional(self):
-        izq = self.implicacion()
-        while self.actual() == "↔":
-            self.consumir()
-            izq = ("↔", izq, self.implicacion())
-        return izq
+with col_borrar:
+    if st.button("⌫ Borrar Último", use_container_width=True):
+        # Borrar el último carácter o símbolo
+        expr = st.session_state.expr.rstrip()
+        if expr:
+            st.session_state.expr = expr[:-1]
 
-    def implicacion(self):
-        izq = self.disyuncion()
-        if self.actual() == "→":
-            self.consumir()
-            return ("→", izq, self.implicacion())
-        return izq
+st.markdown("---")
 
-    def disyuncion(self):
-        izq = self.xor()
-        while self.actual() == "∨":
-            self.consumir()
-            izq = ("∨", izq, self.xor())
-        return izq
+# Preview de la expresión
+st.markdown("**Expresión actual:**")
+st.code(st.session_state.expr.strip() or "(vacío)", language="text")
 
-    def xor(self):
-        izq = self.conjuncion()
-        while self.actual() == "⊕":
-            self.consumir()
-            izq = ("⊕", izq, self.conjuncion())
-        return izq
+# ============================================================
+# LÓGICA CENTRAL - PARSER MEJORADO
+# ============================================================
 
-    def conjuncion(self):
-        izq = self.negacion()
-        while self.actual() == "∧":
-            self.consumir()
-            izq = ("∧", izq, self.negacion())
-        return izq
+def normalizar_expresion(expr: str) -> str:
+    """
+    Convierte símbolos lógicos a expresiones Python evaluables.
+    """
+    e = expr.strip()
+    
+    # Reemplazar símbolos lógicos con operadores Python
+    e = e.replace("∧", " and ")
+    e = e.replace("∨", " or ")
+    e = e.replace("¬", " not ")
+    e = e.replace("⊕", " xor ")
+    
+    # Manejar implicación: p → q  ≡  (not p or q)
+    # Usamos un enfoque más robusto con regex
+    e = re.sub(r'(\w+)\s*→\s*(\w+)', r'(not \1 or \2)', e)
+    e = re.sub(r'\(([^()]+)\)\s*→\s*(\w+)', r'(not (\1) or \2)', e)
+    e = re.sub(r'(\w+)\s*→\s*\(([^()]+)\)', r'(not \1 or (\2))', e)
+    e = re.sub(r'\(([^()]+)\)\s*→\s*\(([^()]+)\)', r'(not (\1) or (\2))', e)
+    
+    # Manejar bicondicional: p ↔ q  ≡  (p == q)
+    e = re.sub(r'(\w+)\s*↔\s*(\w+)', r'(\1 == \2)', e)
+    e = re.sub(r'\(([^()]+)\)\s*↔\s*(\w+)', r'((\1) == \2)', e)
+    e = re.sub(r'(\w+)\s*↔\s*\(([^()]+)\)', r'(\1 == (\2))', e)
+    e = re.sub(r'\(([^()]+)\)\s*↔\s*\(([^()]+)\)', r'((\1) == (\2))', e)
+    
+    # Limpiar espacios múltiples
+    e = re.sub(r'\s+', ' ', e).strip()
+    
+    return e
 
-    def negacion(self):
-        if self.actual() == "¬":
-            self.consumir()
-            return ("¬", self.negacion())
-        return self.atomo()
 
-    def atomo(self):
-        tok = self.consumir()
-        if tok == "(":
-            nodo = self.bicondicional()
-            if self.consumir() != ")":
-                raise ValueError("Falta cerrar paréntesis")
-            return nodo
-        if tok in variables:
-            return ("var", tok)
-        raise ValueError("Expresión incompleta")
+def extraer_variables(expr: str) -> list:
+    """Extrae las variables únicas (p, q, r, s, t, u) de la expresión."""
+    return sorted(set(re.findall(r'\b[p-ut]\b', expr)))
 
-def evaluar(nodo, entorno):
-    tipo = nodo[0]
-    if tipo == "var":
-        return entorno[nodo[1]]
-    if tipo == "¬":
-        return not evaluar(nodo[1], entorno)
-    a = evaluar(nodo[1], entorno)
-    b = evaluar(nodo[2], entorno)
-    if tipo == "∧":
-        return a and b
-    if tipo == "∨":
-        return a or b
-    if tipo == "⊕":
-        return a != b
-    if tipo == "→":
-        return (not a) or b
-    if tipo == "↔":
-        return a == b
-    raise ValueError("Operador desconocido")
 
-def generar_tabla(tokens):
-    arbol = Analizador(tokens).analizar()
-    vars_usadas = sorted({t for t in tokens if t in variables})
-    if not vars_usadas:
-        raise ValueError("Sin variables")
+def xor(a, b):
+    """Función XOR lógica."""
+    return bool(a) != bool(b)
 
-    filas = []
-    for valores in product([0, 1], repeat=len(vars_usadas)):
-        entorno = {v: bool(val) for v, val in zip(vars_usadas, valores)}
-        resultado = evaluar(arbol, entorno)
-        filas.append(list(valores) + [int(resultado)])
-    return vars_usadas, filas
 
-# ---------------------------------------------------------------
-# Ejecución y Visualización
-# ---------------------------------------------------------------
-def ejecutar_calculo():
-    if not st.session_state.tokens:
-        st.warning("⚠️ Ingresa o construye una expresión primero.")
-        st.session_state.df_resultado = None
-    else:
+def generar_tabla(expr_raw: str):
+    """
+    Genera la tabla de verdad completa.
+    Retorna: (variables, tabla)
+    """
+    if not expr_raw.strip():
+        return [], []
+    
+    expr_norm = normalizar_expresion(expr_raw)
+    variables = extraer_variables(expr_norm)
+    
+    if not variables:
+        return [], []
+    
+    tabla = []
+    
+    # Generar todas las combinaciones posibles (2^n)
+    for valores in product([0, 1], repeat=len(variables)):
+        # Crear entorno de evaluación
+        entorno = {v: bool(val) for v, val in zip(variables, valores)}
+        entorno['xor'] = xor  # Agregar función XOR al entorno
+        
         try:
-            vars_usadas, filas = generar_tabla(st.session_state.tokens)
-            st.session_state.df_resultado = pd.DataFrame(filas, columns=vars_usadas + ["Resultado"])
-            st.session_state.vars_usadas = vars_usadas
-        except (ValueError, IndexError):
-            st.error("❌ Expresión inválida. Revisa operadores y paréntesis.")
-            st.session_state.df_resultado = None
+            # Evaluar la expresión
+            resultado = eval(expr_norm, {"__builtins__": {}}, entorno)
+            
+            # Crear fila: [valores de entrada..., resultado]
+            fila = list(valores) + [int(bool(resultado))]
+            tabla.append(fila)
+            
+        except Exception as e:
+            # Si hay error, retornar vacío
+            return [], []
+    
+    return variables, tabla
 
-st.button("🚀 Generar Tabla", type="primary", use_container_width=True, on_click=ejecutar_calculo)
 
-with st.expander("📚 Guía de Operadores"):
-    st.markdown(
-        """
-| Símbolo | Nombre | Se lee | Es verdadero cuando... |
-|:---:|---|---|---|
-| ¬ | Negación | no p | p es falso |
-| ∧ | Conjunción | p y q | ambos son verdaderos |
-| ∨ | Disyunción | p o q | al menos uno es verdadero |
-| ⊕ | O exclusivo | p o q, pero no ambos | p y q son distintos |
-| → | Implicación | si p entonces q | no ocurre p=1 y q=0 |
-| ↔ | Bicondicional | p si y solo si q | p y q son iguales |
+# ============================================================
+# EJEMPLOS PREDEFINIDOS
+# ============================================================
+st.markdown("---")
+st.markdown("**Ejemplos rápidos:**")
 
-**Precedencia (de mayor a menor):** ¬, ∧, ⊕, ∨, →, ↔. Usa paréntesis para cambiar el orden.
-"""
-    )
+ejemplos = {
+    "p ∧ q": "Conjunción simple",
+    "p ∨ q": "Disyunción simple",
+    "p ⊕ q": "XOR",
+    "p → q": "Condicional",
+    "p ↔ q": "Bicondicional",
+    "¬p": "Negación",
+    "(p → q) ↔ (¬q → ¬p)": "Ley de contrarrecíproca",
+    "p ∨ ¬p": "Tautología",
+    "p ∧ ¬p": "Contradicción"
+}
 
-st.divider()
-st.caption("🎓 **Estructuras Discretas** - Ingeniería en Software")
+cols = st.columns(3)
+for i, (expr, desc) in enumerate(ejemplos.items()):
+    with cols[i % 3]:
+        if st.button(f"{expr}", key=f"ejemplo_{i}", use_container_width=True):
+            st.session_state.expr = expr
 
-# Mostrar la tabla guardada en el estado si existe
-if st.session_state.df_resultado is not None:
-    df = st.session_state.df_resultado
-    vars_usadas = st.session_state.vars_usadas
+st.markdown("---")
 
-    st.success(f"✅ Tabla generada para {len(vars_usadas)} variable(s) - {len(df)} filas")
-
-    verdaderos = int(df["Resultado"].sum())
-    falsos = len(df) - verdaderos
-    if falsos == 0:
-        st.info("📊 **Tipo: TAUTOLOGÍA** (siempre verdadera)")
-    elif verdaderos == 0:
-        st.info("📊 **Tipo: CONTRADICCIÓN** (siempre falsa)")
+# ============================================================
+# GENERAR TABLA
+# ============================================================
+if st.button("🚀 Generar Tabla", type="primary", use_container_width=True):
+    if not st.session_state.expr.strip():
+        st.warning("⚠️ Ingresa o construye una expresión primero.")
     else:
-        st.info("📊 **Tipo: CONTINGENCIA** (depende de los valores)")
+        vars_encontradas, tabla = generar_tabla(st.session_state.expr)
+        
+        if not vars_encontradas:
+            st.error("❌ Expresión inválida o sin variables detectadas.")
+            st.info("""
+            **Posibles causas:**
+            - Variables no válidas (usa solo: p, q, r, s, t, u)
+            - Operadores mal escritos
+            - Paréntesis desbalanceados
+            """)
+        else:
+            # Crear DataFrame
+            cols_df = vars_encontradas + ["Resultado"]
+            df = pd.DataFrame(tabla, columns=cols_df)
+            
+            # Mostrar resultados
+            st.success(f"✅ Tabla generada para {len(vars_encontradas)} variable(s) - {len(tabla)} filas")
+            
+            # Clasificar tipo de proposición
+            resultados = df["Resultado"].tolist()
+            if all(r == 1 for r in resultados):
+                st.info("📊 **Tipo: TAUTOLOGÍA** (siempre verdadera)")
+            elif all(r == 0 for r in resultados):
+                st.error("📊 **Tipo: CONTRADICCIÓN** (siempre falsa)")
+            else:
+                st.info("📊 **Tipo: CONTINGENCIA** (depende de los valores)")
+            
+            # Mostrar tabla
+            st.dataframe(df, use_container_width=True, hide_index=True)
+            
+            # Estadísticas
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Total de filas", len(tabla))
+            with col2:
+                verdaderos = sum(resultados)
+                st.metric("Verdaderos (1)", verdaderos)
+            with col3:
+                falsos = len(tabla) - verdaderos
+                st.metric("Falsos (0)", falsos)
+            
+            # Descargar CSV
+            csv = df.to_csv(index=False).encode("utf-8")
+            st.download_button(
+                "📥 Descargar CSV",
+                csv,
+                "tabla_verdad.csv",
+                "text/csv",
+                use_container_width=True
+            )
 
-    st.dataframe(df, use_container_width=True, hide_index=True)
+# ============================================================
+# GUÍA DE REFERENCIA
+# ============================================================
+with st.expander("📚 Guía de Operadores"):
+    st.markdown("""
+    | Símbolo | Nombre | Significado |
+    |:-------:|:-------|:------------|
+    | **∧** | Conjunción | AND - Verdadero si AMBOS son verdaderos |
+    | **∨** | Disyunción | OR - Verdadero si al menos UNO es verdadero |
+    | **¬** | Negación | NOT - Invierte el valor |
+    | **⊕** | XOR | Verdadero si son DIFERENTES |
+    | **→** | Condicional | Falso solo si p=1 y q=0 |
+    | **↔** | Bicondicional | Verdadero si ambos son IGUALES |
+    
+    **Variables permitidas:** p, q, r, s, t, u
+    
+    **Ejemplos:**
+    - `p ∧ q` → Conjunción simple
+    - `(p ∨ q) → r` → Condicional con disyunción
+    - `¬p ⊕ q` → XOR con negación
+    - `(p → q) ↔ (¬q → ¬p)` → Ley de contrarrecíproca
+    """)
 
-    m1, m2, m3 = st.columns(3)
-    m1.metric("Total de filas", len(df))
-    m2.metric("Verdaderos (1)", verdaderos)
-    m3.metric("Falsos (0)", falsos)
-
-    csv = df.to_csv(index=False).encode("utf-8")
-    st.download_button("📥 Descargar CSV", csv, "tabla_verdad.csv", "text/csv")
+# Footer
+st.markdown("---")
+st.markdown("""
+<div style='text-align: center; color: gray; font-size: 0.9em;'>
+    <p>🎓 <strong>Estructuras Discretas</strong> - Ingeniería en Software</p>
+    <p>💻 Desarrollado con Python y Streamlit</p>
+</div>
+""", unsafe_allow_html=True)
