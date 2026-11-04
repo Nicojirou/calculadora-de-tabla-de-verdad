@@ -9,24 +9,25 @@ st.title("🧮 Calculadora de Tabla de la Verdad")
 st.markdown("Construye tu expresión haciendo clic. El resultado se muestra en **0 y 1**.")
 
 # ---------------------------------------------------------------
-# Estado de la sesión: lista de símbolos (permite "Borrar Último")
+# Estado de la sesión
 # ---------------------------------------------------------------
 if "tokens" not in st.session_state:
     st.session_state.tokens = []
 
+if "df_resultado" not in st.session_state:
+    st.session_state.df_resultado = None
+    st.session_state.vars_usadas = []
 
 def agregar(simbolo):
     st.session_state.tokens.append(simbolo)
-
 
 def borrar_ultimo():
     if st.session_state.tokens:
         st.session_state.tokens.pop()
 
-
 def limpiar_todo():
     st.session_state.tokens = []
-
+    st.session_state.df_resultado = None
 
 # ---------------------------------------------------------------
 # Interfaz: Constructor de Expresión
@@ -38,7 +39,7 @@ variables = ["p", "q", "r", "s", "t", "u"]
 cols = st.columns(6)
 for i, v in enumerate(variables):
     with cols[i]:
-        st.button(v, key=f"var_{v}", on_click=agregar, args=(v,), width="stretch")
+        st.button(v, key=f"var_{v}", on_click=agregar, args=(v,), use_container_width=True)
 
 st.markdown("**Operadores:**")
 operadores = [("∧", "and"), ("∨", "or"), ("¬", "not"),
@@ -46,17 +47,17 @@ operadores = [("∧", "and"), ("∨", "or"), ("¬", "not"),
 cols = st.columns(6)
 for i, (simbolo, nombre) in enumerate(operadores):
     with cols[i]:
-        st.button(simbolo, key=f"op_{nombre}", on_click=agregar, args=(simbolo,), width="stretch")
+        st.button(simbolo, key=f"op_{nombre}", on_click=agregar, args=(simbolo,), use_container_width=True)
 
 c1, c2, c3, c4 = st.columns([1.5, 1.5, 1.5, 1.5])
 with c1:
-    st.button("(", key="par_abre", on_click=agregar, args=("(",), width="stretch")
+    st.button("(", key="par_abre", on_click=agregar, args=("(",), use_container_width=True)
 with c2:
-    st.button(")", key="par_cierra", on_click=agregar, args=(")",), width="stretch")
+    st.button(")", key="par_cierra", on_click=agregar, args=(")",), use_container_width=True)
 with c3:
-    st.button("🗑️ Limpiar Todo", key="limpiar", on_click=limpiar_todo, width="stretch")
+    st.button("🗑️ Limpiar Todo", key="limpiar", on_click=limpiar_todo, use_container_width=True)
 with c4:
-    st.button("⌫ Borrar Último", key="borrar", on_click=borrar_ultimo, width="stretch")
+    st.button("⌫ Borrar Último", key="borrar", on_click=borrar_ultimo, use_container_width=True)
 
 st.divider()
 
@@ -69,7 +70,6 @@ st.divider()
 # Pegar un ejercicio
 # ---------------------------------------------------------------
 def tokenizar(texto):
-    """Convierte texto escrito o pegado en la lista de símbolos de la calculadora."""
     texto = texto.lower()
     for viejo, nuevo in [("<->", " ↔ "), ("<=>", " ↔ "), ("⇔", " ↔ "),
                          ("->", " → "), ("=>", " → "), ("⇒", " → "),
@@ -89,12 +89,10 @@ def tokenizar(texto):
         elif tok in palabras:
             tokens.append(palabras[tok])
         elif all(c in variables or c == "v" for c in tok):
-            # Letras pegadas, por ejemplo "pq" o "pvq"
             tokens.extend("∨" if c == "v" else c for c in tok)
         else:
             raise ValueError(f"No reconozco «{tok}». Usa solo las variables p, q, r, s, t, u.")
     return tokens
-
 
 def cargar_pegado():
     texto = st.session_state.get("texto_pegado", "").strip()
@@ -107,7 +105,6 @@ def cargar_pegado():
     except ValueError as e:
         st.session_state.error_pegar = str(e)
 
-
 st.markdown("**Pegar un ejercicio:**")
 st.text_input(
     "Escribe o pega tu expresión",
@@ -116,7 +113,7 @@ st.text_input(
     label_visibility="collapsed",
 )
 st.button("📋 Cargar en la calculadora", key="cargar_pegado",
-          on_click=cargar_pegado, width="stretch")
+          on_click=cargar_pegado, use_container_width=True)
 st.caption(
     "Acepta símbolos (∧ ∨ ¬ ⊕ → ↔) o escritura normal: "
     "`and`, `or`, `not`, `xor`, `->`, `<->`, `^`, `&`, `|`, `~`, `!`."
@@ -131,7 +128,6 @@ st.divider()
 # ---------------------------------------------------------------
 def cargar_ejemplo(tokens):
     st.session_state.tokens = list(tokens)
-
 
 st.markdown("**Ejemplos rápidos:**")
 ejemplos = [
@@ -151,14 +147,12 @@ for fila in range(0, len(ejemplos), 3):
         ej = ejemplos[fila + j]
         with cols[j]:
             st.button("".join(ej), key=f"ej_{fila + j}", on_click=cargar_ejemplo,
-                      args=(ej,), width="stretch")
+                      args=(ej,), use_container_width=True)
 
 st.divider()
 
-
 # ---------------------------------------------------------------
-# Lógica central: analizador sintáctico (sin usar eval)
-# Precedencia (mayor a menor): ¬ , ∧ , ⊕ , ∨ , → , ↔
+# Lógica central: Analizador y Evaluador
 # ---------------------------------------------------------------
 class Analizador:
     def __init__(self, tokens):
@@ -190,7 +184,7 @@ class Analizador:
         izq = self.disyuncion()
         if self.actual() == "→":
             self.consumir()
-            return ("→", izq, self.implicacion())  # asociativa a la derecha
+            return ("→", izq, self.implicacion())
         return izq
 
     def disyuncion(self):
@@ -231,7 +225,6 @@ class Analizador:
             return ("var", tok)
         raise ValueError("Expresión incompleta")
 
-
 def evaluar(nodo, entorno):
     tipo = nodo[0]
     if tipo == "var":
@@ -252,7 +245,6 @@ def evaluar(nodo, entorno):
         return a == b
     raise ValueError("Operador desconocido")
 
-
 def generar_tabla(tokens):
     arbol = Analizador(tokens).analizar()
     vars_usadas = sorted({t for t in tokens if t in variables})
@@ -266,12 +258,23 @@ def generar_tabla(tokens):
         filas.append(list(valores) + [int(resultado)])
     return vars_usadas, filas
 
+# ---------------------------------------------------------------
+# Ejecución y Visualización
+# ---------------------------------------------------------------
+def ejecutar_calculo():
+    if not st.session_state.tokens:
+        st.warning("⚠️ Ingresa o construye una expresión primero.")
+        st.session_state.df_resultado = None
+    else:
+        try:
+            vars_usadas, filas = generar_tabla(st.session_state.tokens)
+            st.session_state.df_resultado = pd.DataFrame(filas, columns=vars_usadas + ["Resultado"])
+            st.session_state.vars_usadas = vars_usadas
+        except (ValueError, IndexError):
+            st.error("❌ Expresión inválida. Revisa operadores y paréntesis.")
+            st.session_state.df_resultado = None
 
-# ---------------------------------------------------------------
-# Ejecución
-# ---------------------------------------------------------------
-generar = st.button("🚀 Generar Tabla", type="primary", width="stretch")
-resultados = st.container()
+st.button("🚀 Generar Tabla", type="primary", use_container_width=True, on_click=ejecutar_calculo)
 
 with st.expander("📚 Guía de Operadores"):
     st.markdown(
@@ -292,38 +295,28 @@ with st.expander("📚 Guía de Operadores"):
 st.divider()
 st.caption("🎓 **Estructuras Discretas** - Ingeniería en Software")
 
-if generar:
-    with resultados:
-        if not st.session_state.tokens:
-            st.warning("⚠️ Ingresa o construye una expresión primero.")
-        else:
-            try:
-                vars_usadas, filas = generar_tabla(st.session_state.tokens)
-            except (ValueError, IndexError):
-                st.error("❌ Expresión inválida. Revisa operadores y paréntesis.")
-            else:
-                df = pd.DataFrame(filas, columns=vars_usadas + ["Resultado"])
-                st.success(
-                    f"✅ Tabla generada para {len(vars_usadas)} variable(s) - {len(df)} filas"
-                )
+# Mostrar la tabla guardada en el estado si existe
+if st.session_state.df_resultado is not None:
+    df = st.session_state.df_resultado
+    vars_usadas = st.session_state.vars_usadas
 
-                # Clasificación lógica según la columna Resultado
-                verdaderos = int(df["Resultado"].sum())
-                falsos = len(df) - verdaderos
-                if falsos == 0:
-                    st.info("📊 **Tipo: TAUTOLOGÍA** (siempre verdadera)")
-                elif verdaderos == 0:
-                    st.info("📊 **Tipo: CONTRADICCIÓN** (siempre falsa)")
-                else:
-                    st.info("📊 **Tipo: CONTINGENCIA** (depende de los valores)")
+    st.success(f"✅ Tabla generada para {len(vars_usadas)} variable(s) - {len(df)} filas")
 
-                st.dataframe(df, width="stretch", hide_index=True)
+    verdaderos = int(df["Resultado"].sum())
+    falsos = len(df) - verdaderos
+    if falsos == 0:
+        st.info("📊 **Tipo: TAUTOLOGÍA** (siempre verdadera)")
+    elif verdaderos == 0:
+        st.info("📊 **Tipo: CONTRADICCIÓN** (siempre falsa)")
+    else:
+        st.info("📊 **Tipo: CONTINGENCIA** (depende de los valores)")
 
-                # Resumen numérico
-                m1, m2, m3 = st.columns(3)
-                m1.metric("Total de filas", len(df))
-                m2.metric("Verdaderos (1)", verdaderos)
-                m3.metric("Falsos (0)", falsos)
+    st.dataframe(df, use_container_width=True, hide_index=True)
 
-                csv = df.to_csv(index=False).encode("utf-8")
-                st.download_button("📥 Descargar CSV", csv, "tabla_verdad.csv", "text/csv")
+    m1, m2, m3 = st.columns(3)
+    m1.metric("Total de filas", len(df))
+    m2.metric("Verdaderos (1)", verdaderos)
+    m3.metric("Falsos (0)", falsos)
+
+    csv = df.to_csv(index=False).encode("utf-8")
+    st.download_button("📥 Descargar CSV", csv, "tabla_verdad.csv", "text/csv")
