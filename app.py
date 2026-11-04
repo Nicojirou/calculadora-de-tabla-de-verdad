@@ -277,8 +277,7 @@ with st.expander("📚 Guía de Operadores"):
     - `p ∧ q` → Conjunción simple
     - `(p ∨ q) → r` → Condicional con disyunción
     - `¬p ⊕ q` → XOR con negación
-    - `(p → q) ↔ (¬q → ¬p)` → Ley de contrarrecíproca
-    """)
+    - `(p → q) ↔ (¬q → ¬p)` → Ley de contrarrecíproca""")
 # Footer
 st.markdown("---")
 st.markdown("""
