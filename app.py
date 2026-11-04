@@ -89,29 +89,26 @@ st.code(st.session_state.expr.strip() or "(vacío)", language="text")
 
 def normalizar_expresion(expr: str) -> str:
     """
-    Convierte símbolos lógicos a expresiones Python evaluables.
+    Convierte símbolos lógicos a expresiones Python evaluables de forma robusta.
     """
     e = expr.strip()
     
-    # Reemplazar símbolos lógicos con operadores Python
+    # 1. Reemplazar operadores básicos primero
     e = e.replace("∧", " and ")
     e = e.replace("∨", " or ")
     e = e.replace("¬", " not ")
     e = e.replace("⊕", " xor ")
     
-    # Manejar implicación: p → q  ≡  (not p or q)
-    # Usamos un enfoque más robusto con regex
-    e = re.sub(r'(\w+)\s*→\s*(\w+)', r'(not \1 or \2)', e)
-    e = re.sub(r'\(([^()]+)\)\s*→\s*(\w+)', r'(not (\1) or \2)', e)
-    e = re.sub(r'(\w+)\s*→\s*\(([^()]+)\)', r'(not \1 or (\2))', e)
-    e = re.sub(r'\(([^()]+)\)\s*→\s*\(([^()]+)\)', r'(not (\1) or (\2))', e)
-    
-    # Manejar bicondicional: p ↔ q  ≡  (p == q)
-    e = re.sub(r'(\w+)\s*↔\s*(\w+)', r'(\1 == \2)', e)
-    e = re.sub(r'\(([^()]+)\)\s*↔\s*(\w+)', r'((\1) == \2)', e)
-    e = re.sub(r'(\w+)\s*↔\s*\(([^()]+)\)', r'(\1 == (\2))', e)
-    e = re.sub(r'\(([^()]+)\)\s*↔\s*\(([^()]+)\)', r'((\1) == (\2))', e)
-    
+    # 2. Manejar la implicación (→) de manera iterativa para expresiones complejas
+    while "→" in e:
+        e = re.sub(r'(\([^()]+\)|\b[p-ut]\b)\s*→\s*(\([^()]+\)|\b[p-ut]\b)', r'(not (\1) or (\2))', e)
+        e = re.sub(r'([^()]+)\s*→\s*([^()]+)', r'(not (\1) or (\2))', e)
+
+    # 3. Manejar el bicondicional (↔) de manera iterativa
+    while "↔" in e:
+        e = re.sub(r'(\([^()]+\)|\b[p-ut]\b)\s*↔\s*(\([^()]+\)|\b[p-ut]\b)', r'((\1) == (\2))', e)
+        e = re.sub(r'([^()]+)\s*↔\s*([^()]+)', r'((\1) == (\2))', e)
+        
     # Limpiar espacios múltiples
     e = re.sub(r'\s+', ' ', e).strip()
     
