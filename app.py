@@ -192,62 +192,73 @@ for i, (expr, desc) in enumerate(ejemplos.items()):
 st.markdown("---")
 
 # ============================================================
+# ESTADO INICIAL PARA LA TABLA
+# ============================================================
+if "tabla_generada" not in st.session_state:
+    st.session_state.tabla_generada = False
+    st.session_state.df = None
+    st.session_state.vars_encontradas = []
+
+# ============================================================
 # GENERAR TABLA
 # ============================================================
 if st.button("🚀 Generar Tabla", type="primary", use_container_width=True):
     if not st.session_state.expr.strip():
         st.warning("⚠️ Ingresa o construye una expresión primero.")
+        st.session_state.tabla_generada = False
     else:
         vars_encontradas, tabla = generar_tabla(st.session_state.expr)
         
         if not vars_encontradas:
             st.error("❌ Expresión inválida o sin variables detectadas.")
-            st.info("""
-            **Posibles causas:**
-            - Variables no válidas (usa solo: p, q, r, s, t, u)
-            - Operadores mal escritos
-            - Paréntesis desbalanceados
-            """)
+            st.session_state.tabla_generada = False
         else:
-            # Crear DataFrame
+            # Guardar resultados en el estado de la sesión
             cols_df = vars_encontradas + ["Resultado"]
-            df = pd.DataFrame(tabla, columns=cols_df)
-            
-            # Mostrar resultados
-            st.success(f"✅ Tabla generada para {len(vars_encontradas)} variable(s) - {len(tabla)} filas")
-            
-            # Clasificar tipo de proposición
-            resultados = df["Resultado"].tolist()
-            if all(r == 1 for r in resultados):
-                st.info("📊 **Tipo: TAUTOLOGÍA** (siempre verdadera)")
-            elif all(r == 0 for r in resultados):
-                st.error("📊 **Tipo: CONTRADICCIÓN** (siempre falsa)")
-            else:
-                st.info("📊 **Tipo: CONTINGENCIA** (depende de los valores)")
-            
-            # Mostrar tabla
-            st.dataframe(df, use_container_width=True, hide_index=True)
-            
-            # Estadísticas
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("Total de filas", len(tabla))
-            with col2:
-                verdaderos = sum(resultados)
-                st.metric("Verdaderos (1)", verdaderos)
-            with col3:
-                falsos = len(tabla) - verdaderos
-                st.metric("Falsos (0)", falsos)
-            
-            # Descargar CSV
-            csv = df.to_csv(index=False).encode("utf-8")
-            st.download_button(
-                "📥 Descargar CSV",
-                csv,
-                "tabla_verdad.csv",
-                "text/csv",
-                use_container_width=True
-            )
+            st.session_state.df = pd.DataFrame(tabla, columns=cols_df)
+            st.session_state.vars_encontradas = vars_encontradas
+            st.session_state.tabla_generada = True
+
+# Mostrar la tabla y resultados si ya fueron generados en la sesión
+if st.session_state.tabla_generada and st.session_state.df is not None:
+    df = st.session_state.df
+    vars_encontradas = st.session_state.vars_encontradas
+    tabla = df.values.tolist()
+    
+    st.success(f"✅ Tabla generada para {len(vars_encontradas)} variable(s) - {len(tabla)} filas")
+    
+    # Clasificar tipo de proposición
+    resultados = df["Resultado"].tolist()
+    if all(r == 1 for r in resultados):
+        st.info("📊 **Tipo: TAUTOLOGÍA** (siempre verdadera)")
+    elif all(r == 0 for r in resultados):
+        st.error("📊 **Tipo: CONTRADICCIÓN** (siempre falsa)")
+    else:
+        st.info("📊 **Tipo: CONTINGENCIA** (depende de los valores)")
+    
+    # Mostrar tabla
+    st.dataframe(df, use_container_width=True, hide_index=True)
+    
+    # Estadísticas
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Total de filas", len(tabla))
+    with col2:
+        verdaderos = sum(resultados)
+        st.metric("Verdaderos (1)", verdaderos)
+    with col3:
+        falsos = len(tabla) - verdaderos
+        st.metric("Falsos (0)", falsos)
+    
+    # Descargar CSV
+    csv = df.to_csv(index=False).encode("utf-8")
+    st.download_button(
+        "📥 Descargar CSV",
+        csv,
+        "tabla_verdad.csv",
+        "text/csv",
+        use_container_width=True
+    )
 
 # ============================================================
 # GUÍA DE REFERENCIA
