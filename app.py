@@ -50,10 +50,7 @@ operadores = [
 for i, (symbol, name) in enumerate(operadores):
     with cols[i % 6]:
         if st.button(f"{symbol}", key=f"btn_{name}", use_container_width=True):
-            if name == "NOT":
-                st.session_state.expr += f" {symbol} "
-            else:
-                st.session_state.expr += f" {symbol} "
+            st.session_state.expr += f" {symbol} "
 
 # Paréntesis y controles
 col_paren1, col_paren2, col_limpiar, col_borrar = st.columns(4)
@@ -69,10 +66,11 @@ with col_paren2:
 with col_limpiar:
     if st.button("🗑️ Limpiar Todo", use_container_width=True):
         st.session_state.expr = ""
+        st.session_state.tabla_generada = False
+        st.session_state.df = None
 
 with col_borrar:
     if st.button("⌫ Borrar Último", use_container_width=True):
-        # Borrar el último carácter o símbolo
         expr = st.session_state.expr.rstrip()
         if expr:
             st.session_state.expr = expr[:-1]
@@ -99,15 +97,28 @@ def normalizar_expresion(expr: str) -> str:
     e = e.replace("¬", " not ")
     e = e.replace("⊕", " xor ")
     
+    # Patrón para reconocer términos que pueden incluir 'not' y paréntesis o variables
+    term_pattern = r'(?:not\s+)*(?:\b[p-ut]\b|\([^()]+\))'
+    
     # 2. Manejar la implicación (→) de manera iterativa para expresiones complejas
     while "→" in e:
-        e = re.sub(r'(\([^()]+\)|\b[p-ut]\b)\s*→\s*(\([^()]+\)|\b[p-ut]\b)', r'(not (\1) or (\2))', e)
-        e = re.sub(r'([^()]+)\s*→\s*([^()]+)', r'(not (\1) or (\2))', e)
+        pattern = f'({term_pattern})\\s*→\\s*({term_pattern})'
+        nuevo = re.sub(pattern, r'(not (\1) or (\2))', e)
+        if nuevo == e:
+            nuevo = re.sub(r'([^→↔]+)\s*→\s*([^→↔]+)', r'(not (\1) or (\2))', e)
+        if nuevo == e:
+            break
+        e = nuevo
 
     # 3. Manejar el bicondicional (↔) de manera iterativa
     while "↔" in e:
-        e = re.sub(r'(\([^()]+\)|\b[p-ut]\b)\s*↔\s*(\([^()]+\)|\b[p-ut]\b)', r'((\1) == (\2))', e)
-        e = re.sub(r'([^()]+)\s*↔\s*([^()]+)', r'((\1) == (\2))', e)
+        pattern = f'({term_pattern})\\s*↔\\s*({term_pattern})'
+        nuevo = re.sub(pattern, r'((\1) == (\2))', e)
+        if nuevo == e:
+            nuevo = re.sub(r'([^→↔]+)\s*↔\s*([^→↔]+)', r'((\1) == (\2))', e)
+        if nuevo == e:
+            break
+        e = nuevo
         
     # Limpiar espacios múltiples
     e = re.sub(r'\s+', ' ', e).strip()
@@ -143,20 +154,14 @@ def generar_tabla(expr_raw: str):
     
     # Generar todas las combinaciones posibles (2^n)
     for valores in product([0, 1], repeat=len(variables)):
-        # Crear entorno de evaluación
         entorno = {v: bool(val) for v, val in zip(variables, valores)}
-        entorno['xor'] = xor  # Agregar función XOR al entorno
+        entorno['xor'] = xor 
         
         try:
-            # Evaluar la expresión
             resultado = eval(expr_norm, {"__builtins__": {}}, entorno)
-            
-            # Crear fila: [valores de entrada..., resultado]
             fila = list(valores) + [int(bool(resultado))]
             tabla.append(fila)
-            
         except Exception as e:
-            # Si hay error, retornar vacío
             return [], []
     
     return variables, tabla
@@ -210,7 +215,6 @@ if st.button("🚀 Generar Tabla", type="primary", use_container_width=True):
             st.error("❌ Expresión inválida o sin variables detectadas.")
             st.session_state.tabla_generada = False
         else:
-            # Guardar resultados en el estado de la sesión
             cols_df = vars_encontradas + ["Resultado"]
             st.session_state.df = pd.DataFrame(tabla, columns=cols_df)
             st.session_state.vars_encontradas = vars_encontradas
@@ -224,7 +228,6 @@ if st.session_state.tabla_generada and st.session_state.df is not None:
     
     st.success(f"✅ Tabla generada para {len(vars_encontradas)} variable(s) - {len(tabla)} filas")
     
-    # Clasificar tipo de proposición
     resultados = df["Resultado"].tolist()
     if all(r == 1 for r in resultados):
         st.info("📊 **Tipo: TAUTOLOGÍA** (siempre verdadera)")
@@ -233,10 +236,8 @@ if st.session_state.tabla_generada and st.session_state.df is not None:
     else:
         st.info("📊 **Tipo: CONTINGENCIA** (depende de los valores)")
     
-    # Mostrar tabla
     st.dataframe(df, use_container_width=True, hide_index=True)
     
-    # Estadísticas
     col1, col2, col3 = st.columns(3)
     with col1:
         st.metric("Total de filas", len(tabla))
@@ -247,7 +248,6 @@ if st.session_state.tabla_generada and st.session_state.df is not None:
         falsos = len(tabla) - verdaderos
         st.metric("Falsos (0)", falsos)
     
-    # Descargar CSV
     csv = df.to_csv(index=False).encode("utf-8")
     st.download_button(
         "📥 Descargar CSV",
@@ -273,6 +273,21 @@ with st.expander("📚 Guía de Operadores"):
     
     **Variables permitidas:** p, q, r, s, t, u
     
+    **Ejemplos:**
+    - `p ∧ q` → Conjunción simple
+    - `(p ∨ q) → r` → Condicional con disyunción
+    - `¬p ⊕ q` → XOR con negación
+    - `(p → q) ↔ (¬q → ¬p)` → Ley de contrarrecíproca
+    """)
+
+# Footer
+st.markdown("---")
+st.markdown("""
+<div style='text-align: center; color: gray; font-size: 0.9em;'>
+    <p>🎓 <strong>Estructuras Discretas</strong> - Ingeniería en Software</p>
+    <p>💻 Desarrollado con Python y Streamlit</p>
+</div>
+""", unsafe_allow_html=True)
     **Ejemplos:**
     - `p ∧ q` → Conjunción simple
     - `(p ∨ q) → r` → Condicional con disyunción
