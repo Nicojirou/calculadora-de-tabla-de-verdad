@@ -91,16 +91,25 @@ def normalizar_expresion(expr: str) -> str:
     """
     e = expr.strip()
     
-    # 1. Reemplazar operadores básicos primero
+    # 1. Reemplazar operadores básicos primero (¡Omitimos XOR de aquí para tratarlo como función!)
     e = e.replace("∧", " and ")
     e = e.replace("∨", " or ")
     e = e.replace("¬", " not ")
-    e = e.replace("⊕", " xor ")
     
     # Patrón para reconocer términos que pueden incluir 'not' y paréntesis o variables
     term_pattern = r'(?:not\s+)*(?:\b[p-ut]\b|\([^()]+\))'
     
-    # 2. Manejar la implicación (→) de manera iterativa para expresiones complejas
+    # 2. Manejar el XOR (⊕) convirtiéndolo en llamada a la función xor(...)
+    while "⊕" in e:
+        pattern = f'({term_pattern})\\s*⊕\\s*({term_pattern})'
+        nuevo = re.sub(pattern, r'xor(\1, \2)', e)
+        if nuevo == e:
+            nuevo = re.sub(r'([^→↔⊕]+)\s*⊕\s*([^→↔⊕]+)', r'xor(\1, \2)', e)
+        if nuevo == e:
+            break
+        e = nuevo
+
+    # 3. Manejar la implicación (→) de manera iterativa para expresiones complejas
     while "→" in e:
         pattern = f'({term_pattern})\\s*→\\s*({term_pattern})'
         nuevo = re.sub(pattern, r'(not (\1) or (\2))', e)
@@ -110,7 +119,7 @@ def normalizar_expresion(expr: str) -> str:
             break
         e = nuevo
 
-    # 3. Manejar el bicondicional (↔) de manera iterativa
+    # 4. Manejar el bicondicional (↔) de manera iterativa
     while "↔" in e:
         pattern = f'({term_pattern})\\s*↔\\s*({term_pattern})'
         nuevo = re.sub(pattern, r'((\1) == (\2))', e)
